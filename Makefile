@@ -17,10 +17,37 @@
 ## along with this library.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-BINARY = src/main
-OBJS = src/foo.o
+OUR_SRC_DIR = src
+OUR_INCLUDE_DIR = include
+OUR_BUILD_DIR = src
+
+BINARY = $(OUR_SRC_DIR)/main
+OBJS = $(OUR_SRC_DIR)/foo.o
+
+# Default arch
+ifndef ARCH
+$(warning arch defaults to stm32)
+ARCH=stm32
+V=1
+endif
+
+############### MAKING FOR X86
+ifeq ($(ARCH), x86)
+$(info making for X86 with SDL)
+
+include x86SDL.mk
+
+endif
+
+
+############ MAKING FOR STM32
+ifeq ($(ARCH), stm32)
+$(info making for STM32)
+
 
 OPENCM3_DIR = libopencm3
 LDSCRIPT = stm32f4-discovery.ld
 
 include libopencm3.target.mk
+
+endif

@@ -67,10 +67,6 @@ ifeq ($(V),1)
 $(info Using $(OPENCM3_DIR) path to library)
 endif
 
-OUR_SRC_DIR = src
-OUR_INCLUDE_DIR = include
-OUR_BUILD_DIR = src
-
 INCLUDE_DIR	= $(OPENCM3_DIR)/include
 LIB_DIR		= $(OPENCM3_DIR)/lib
 SCRIPT_DIR	= $(OPENCM3_DIR)/scripts
