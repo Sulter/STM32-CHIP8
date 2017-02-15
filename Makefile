@@ -22,7 +22,7 @@ OUR_INCLUDE_DIR = include
 OUR_BUILD_DIR = src
 
 BINARY = $(OUR_SRC_DIR)/main
-OBJS = $(OUR_SRC_DIR)/foo.o
+OBJS = $(OUR_SRC_DIR)/pcd8544.o
 
 # Default arch
 ifndef ARCH

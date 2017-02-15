@@ -1,6 +1,12 @@
-#include <libopencm3/stm32/rcc.h>
+#include "pcd8544.h"
+#include <string.h>
 #include <libopencm3/stm32/gpio.h>
-#include "foo.h"
+
+static void LcdClear(void);
+static void LcdWrite(uint8_t dc, uint8_t data);
+static void shiftOut(uint8_t bitOrder, uint8_t val);
+static void LcdClearBuffer(void);
+static void LcdGoto(uint8_t x, uint8_t y);
 
 #define LSBFIRST 0
 #define MSBFIRST 1
@@ -19,17 +25,13 @@
 #define LCD_X 84
 #define LCD_Y 48
 
+#define LCD_Y_B LCD_Y/8
 
-//https://github.com/carlosefr/pcd8544 made to work with the libopencm3
-void sleep(uint16_t ms);
-void setup();
-void LcdClear();
-void LcdInitialise();
-void LcdWrite(uint8_t dc, uint8_t data);
+uint8_t screen_buffer[LCD_X][LCD_Y_B];
 
 static const uint8_t ASCII[][5] =
 {
-    {0x00, 0x00, 0x00, 0x00, 0x00} // 20  
+    {0x00, 0x00, 0x00, 0x00, 0x00} // 20
     ,{0x00, 0x00, 0x5f, 0x00, 0x00} // 21 !
     ,{0x00, 0x07, 0x00, 0x07, 0x00} // 22 "
     ,{0x14, 0x7f, 0x14, 0x7f, 0x14} // 23 #
@@ -103,7 +105,7 @@ static const uint8_t ASCII[][5] =
     ,{0x0c, 0x52, 0x52, 0x52, 0x3e} // 67 g
     ,{0x7f, 0x08, 0x04, 0x04, 0x78} // 68 h
     ,{0x00, 0x44, 0x7d, 0x40, 0x00} // 69 i
-    ,{0x20, 0x40, 0x44, 0x3d, 0x00} // 6a j 
+    ,{0x20, 0x40, 0x44, 0x3d, 0x00} // 6a j
     ,{0x7f, 0x10, 0x28, 0x44, 0x00} // 6b k
     ,{0x00, 0x41, 0x7f, 0x40, 0x00} // 6c l
     ,{0x7c, 0x04, 0x18, 0x04, 0x78} // 6d m
@@ -127,6 +129,14 @@ static const uint8_t ASCII[][5] =
     ,{0x78, 0x46, 0x41, 0x46, 0x78} // 7f →
 };
 
+static void sleep(uint16_t us)
+{
+    uint32_t sleeptime = 168 * us;
+    for (uint32_t  i= 0; i < sleeptime; i++) {
+	__asm__("nop");
+    }
+}
+
 void LcdCharacter(char character)
 {
     LcdWrite(LCD_D, 0x00);
@@ -137,7 +147,50 @@ void LcdCharacter(char character)
     LcdWrite(LCD_D, 0x00);
 }
 
-void LcdClear(void)
+static void LcdClearBuffer(void)
+{
+    memset(screen_buffer, 0, sizeof(screen_buffer[0][0]) * LCD_X * LCD_Y_B);
+}
+
+/**
+ * @brief Sets the screen pointer at a specific data bank
+ */
+static void LcdGoto(uint8_t x, uint8_t y)
+{
+    LcdWrite(LCD_C, 0x80 | x);
+    LcdWrite(LCD_C, 0x40 | y);
+}
+
+/**
+ * @brief Sets a pixel on the screen buffer
+ */
+void LcdSetPixel(uint8_t x, uint8_t y)
+{
+    if(x > LCD_X - 1 || y > LCD_Y - 1)
+	return;
+
+    uint8_t remain = y % 8;
+    screen_buffer[x][y/8] |= 1 << remain;
+
+}
+
+/**
+ * @brief Sends screen buffer to the screen, clears the buffer
+ */
+void LcdFlipBuffer(void)
+{
+    LcdGoto(0,0);
+
+    for(uint8_t y = 0; y < LCD_Y_B; y++){
+	for(uint8_t x = 0; x < LCD_X; x++){
+	    LcdWrite(LCD_D, screen_buffer[x][y]);
+	}
+    }
+
+    LcdClearBuffer();
+}
+
+static void LcdClear(void)
 {
     for (int index = 0; index < LCD_X * LCD_Y / 8; index++)
     {
@@ -147,14 +200,23 @@ void LcdClear(void)
 
 void LcdInitialise(void)
 {
+    gpio_mode_setup(GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,
+		    PIN_RESET | PIN_SCE | PIN_DC | PIN_SDIN | PIN_SCLK);
+    gpio_set_output_options(GPIO_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ,
+			    PIN_RESET | PIN_SCE | PIN_DC | PIN_SDIN | PIN_SCLK);
+
+
     gpio_clear(GPIO_PORT, PIN_RESET);
     gpio_set(GPIO_PORT, PIN_RESET);
     LcdWrite(LCD_C, 0x21 );  // LCD Extended Commands.
-    LcdWrite(LCD_C, 0xB1 );  // Set LCD Vop (Contrast). 
+    LcdWrite(LCD_C, 0xB1 );  // Set LCD Vop (Contrast).
     LcdWrite(LCD_C, 0x04 );  // Set Temp coefficent. //0x04
     LcdWrite(LCD_C, 0x14 );  // LCD bias mode 1:48. //0x13
     LcdWrite(LCD_C, 0x20 );  // LCD Basic Commands
     LcdWrite(LCD_C, 0x0C );  // LCD in normal mode.
+
+    LcdClear();
+    LcdClearBuffer();
 }
 
 void LcdString(char *characters)
@@ -165,7 +227,7 @@ void LcdString(char *characters)
     }
 }
 
-void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
+static void shiftOut(uint8_t bitOrder, uint8_t val)
 {
     uint8_t i;
 
@@ -183,14 +245,13 @@ void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
 		gpio_clear(GPIO_PORT, PIN_SDIN);
 	}
 
-
-	
 	gpio_set(GPIO_PORT, PIN_SCLK);
+	sleep(1);
 	gpio_clear(GPIO_PORT, PIN_SCLK);
     }
 }
 
-void LcdWrite(uint8_t dc, uint8_t data)
+static void LcdWrite(uint8_t dc, uint8_t data)
 {
     if(dc)
 	gpio_set(GPIO_PORT, PIN_DC);
@@ -199,49 +260,7 @@ void LcdWrite(uint8_t dc, uint8_t data)
 
     gpio_clear(GPIO_PORT, PIN_SCE);
 
-    shiftOut(PIN_SDIN, PIN_SCLK, MSBFIRST, data);
-    
+    shiftOut(MSBFIRST, data);
+
     gpio_set(GPIO_PORT, PIN_SCE);
-}
-
-void sleep(uint16_t ms)
-{
-    uint32_t sleeptime = 16800 * ms;
-    for (uint32_t  i= 0; i < sleeptime; i++) {
-	__asm__("nop");
-    }
-}
-
-void setup(void)
-{
-    //set cpu speed
-    rcc_clock_setup_hse_3v3(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
-    
-    /* Enable GPIOD clock. */
-    rcc_periph_clock_enable(RCC_GPIOD);
-
-    /* output */
-    gpio_mode_setup(GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, PIN_RESET | PIN_SCE | PIN_DC | PIN_SDIN | PIN_SCLK | GPIO13);
-
-    LcdInitialise();
-    LcdClear();
-}
-
-int main(void)
-{
-    foo();
-	
-    setup();
-
-    LcdString("Hello me!");
-    
-    while (1) {
-	gpio_set(GPIOD, GPIO13);
-	sleep(2000);
-	gpio_clear(GPIOD, GPIO13);
-	sleep(1000);
-	
-    }
-
-    return 0;
 }
