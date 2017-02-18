@@ -78,6 +78,7 @@ CFLAGS		+= -Os -g
 CFLAGS		+= -Wextra -Wshadow -Wimplicit-function-declaration
 CFLAGS		+= -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes
 CFLAGS		+= -fno-common -ffunction-sections -fdata-sections
+CFLAGS		+= -std=c11
 
 ###############################################################################
 # C++ flags
@@ -85,6 +86,7 @@ CFLAGS		+= -fno-common -ffunction-sections -fdata-sections
 CXXFLAGS	+= -Os -g
 CXXFLAGS	+= -Wextra -Wshadow -Wredundant-decls  -Weffc++
 CXXFLAGS	+= -fno-common -ffunction-sections -fdata-sections
+CXXFLAGS	+= -std=c++11
 
 ###############################################################################
 # C & C++ preprocessor common flags
