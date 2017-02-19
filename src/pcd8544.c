@@ -1,30 +1,23 @@
 #include "pcd8544.h"
 #include <string.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/rcc.h>
 
 static void LcdClear(void);
 static void LcdWrite(uint8_t dc, uint8_t data);
-static void shiftOut(uint8_t bitOrder, uint8_t val);
 static void LcdClearBuffer(void);
 static void LcdGoto(uint8_t x, uint8_t y);
 
-#define LSBFIRST 0
-#define MSBFIRST 1
-
-#define GPIO_PORT GPIOD
-
-#define PIN_RESET GPIO5
-#define PIN_SCE   GPIO4
-#define PIN_DC    GPIO3
-#define PIN_SDIN  GPIO2
-#define PIN_SCLK  GPIO1
+#define GPIO_PORT GPIOB
+#define PIN_RESET GPIO14
+#define PIN_DC    GPIO11
 
 #define LCD_C 0
 #define LCD_D 1
 
 #define LCD_X 84
 #define LCD_Y 48
-
 #define LCD_Y_B LCD_Y/8
 
 uint8_t screen_buffer[LCD_X][LCD_Y_B];
@@ -129,7 +122,7 @@ static const uint8_t ASCII[][5] =
     ,{0x78, 0x46, 0x41, 0x46, 0x78} // 7f →
 };
 
-static void sleep(uint16_t us)
+static void sleep_us(uint16_t us)
 {
     uint32_t sleeptime = 168 * us;
     for (uint32_t  i= 0; i < sleeptime; i++) {
@@ -200,14 +193,40 @@ static void LcdClear(void)
 
 void LcdInitialise(void)
 {
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_SPI2);
+
+    //init gpios
     gpio_mode_setup(GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,
-		    PIN_RESET | PIN_SCE | PIN_DC | PIN_SDIN | PIN_SCLK);
-    gpio_set_output_options(GPIO_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ,
-			    PIN_RESET | PIN_SCE | PIN_DC | PIN_SDIN | PIN_SCLK);
+		    PIN_RESET | PIN_DC);
+    gpio_set_output_options(GPIO_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
+			    PIN_RESET | PIN_DC);
+
+    //init SPI2
+    /*
+      PB15 = SPI2_MOIS
+      PB13 = SPI2_SCK
+      PB12 = SPI2_NSS
+     */
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE,
+		    GPIO15 | GPIO13 | GPIO12);
+    gpio_set_af(GPIOB, GPIO_AF5,
+		GPIO15 | GPIO13 | GPIO12);
 
 
+    //uses APB1
+    spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_16, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+		    SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT,
+		    SPI_CR1_MSBFIRST);
+
+    spi_enable(SPI2);
+    spi_set_nss_low(SPI2);
+
+    //Screen initialisation
     gpio_clear(GPIO_PORT, PIN_RESET);
     gpio_set(GPIO_PORT, PIN_RESET);
+    sleep_us(1);
+
     LcdWrite(LCD_C, 0x21 );  // LCD Extended Commands.
     LcdWrite(LCD_C, 0xB1 );  // Set LCD Vop (Contrast).
     LcdWrite(LCD_C, 0x04 );  // Set Temp coefficent. //0x04
@@ -227,30 +246,6 @@ void LcdString(char *characters)
     }
 }
 
-static void shiftOut(uint8_t bitOrder, uint8_t val)
-{
-    uint8_t i;
-
-    for (i = 0; i < 8; i++)  {
-	if (bitOrder == LSBFIRST) {
-	    if(!!(val & (1 << i)))
-		gpio_set(GPIO_PORT, PIN_SDIN);
-	    else
-		gpio_clear(GPIO_PORT, PIN_SDIN);
-	}
-	else {
-	    if(!!(val & (1 << (7 - i))))
-		gpio_set(GPIO_PORT, PIN_SDIN);
-	    else
-		gpio_clear(GPIO_PORT, PIN_SDIN);
-	}
-
-	gpio_set(GPIO_PORT, PIN_SCLK);
-	sleep(1);
-	gpio_clear(GPIO_PORT, PIN_SCLK);
-    }
-}
-
 static void LcdWrite(uint8_t dc, uint8_t data)
 {
     if(dc)
@@ -258,9 +253,6 @@ static void LcdWrite(uint8_t dc, uint8_t data)
     else
 	gpio_clear(GPIO_PORT, PIN_DC);
 
-    gpio_clear(GPIO_PORT, PIN_SCE);
-
-    shiftOut(MSBFIRST, data);
-
-    gpio_set(GPIO_PORT, PIN_SCE);
+    spi_send(SPI2, data);
+    sleep_us(1); //needed because of the required timing when PIN_DC is changed
 }

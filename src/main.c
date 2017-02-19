@@ -27,11 +27,10 @@ void sleep(uint16_t ms)
 
 void setup(void)
 {
-    //set cpu speed
+    /*
+      The main PLL will run at 168 MHz, APB1 at 42, APB2 at 84 MHz.
+     */
     rcc_clock_setup_hse_3v3(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
-
-    /* Enable GPIOD clock. */
-    rcc_periph_clock_enable(RCC_GPIOD);
 
     LcdInitialise();
 }
