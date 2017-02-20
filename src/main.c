@@ -1,7 +1,7 @@
 #include <libopencm3/stm32/rcc.h>
 #include "pcd8544.h"
+#include "timer.h"
 
-void sleep(uint16_t);
 void setup(void);
 void loop(void);
 void setPixelTest(void);
@@ -17,14 +17,6 @@ int main(void)
     return 0;
 }
 
-void sleep(uint16_t ms)
-{
-    uint32_t sleeptime = 16800 * ms;
-    for (uint32_t  i= 0; i < sleeptime; i++) {
-	__asm__("nop");
-    }
-}
-
 void setup(void)
 {
     /*
@@ -33,13 +25,14 @@ void setup(void)
     rcc_clock_setup_hse_3v3(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
     LcdInitialise();
+    TimerInit(168000000);
 }
 
 void setPixelTest()
 {
     static uint8_t x = 0;
     static uint8_t y = 0;
-    sleep(20);
+    TimerSleep(20);
     LcdSetPixel(x, y);
     x++;
     if(x > 83) {
