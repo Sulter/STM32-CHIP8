@@ -124,6 +124,7 @@ LDLIBS		+= -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group
 all: elf
 
 elf: $(BINARY).elf
+	@bash ./size.sh $^
 bin: $(BINARY).bin
 hex: $(BINARY).hex
 srec: $(BINARY).srec
