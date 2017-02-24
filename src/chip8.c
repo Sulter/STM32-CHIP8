@@ -1,4 +1,7 @@
+#include "chip8.h"
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 /**
  * TODO: 
@@ -6,7 +9,9 @@
  * SCREEN - ^
  */
 
-uint8_t memory[4096] = {
+static uint8_t chip8_screen_buffer[CHIP8_WIDTH][CHIP8_HEIGHT];
+
+static uint8_t memory[4096] = {
     /*
       0x000-0x1FF - Chip 8 interpreter (contains font set in emu)
     */
@@ -33,11 +38,11 @@ uint8_t memory[4096] = {
 };
 
 //CPU
-uint8_t V[16] = {0};
-uint16_t PC = 200;
-uint16_t I = 0;
-uint16_t stack[16] = {0};
-uint16_t stackP = 0;
+static uint8_t V[16] = {0};
+static uint16_t PC = 200;
+static uint16_t I = 0;
+static uint16_t stack[16] = {0};
+static uint16_t stackP = 0;
 
 //peripherals
 volatile uint8_t delay_timer;
@@ -45,10 +50,11 @@ volatile uint8_t sound_timer;
 
 //declare
 void chip8_timer_ISR(void);
-void chip8_init(uint8_t *game, uint16_t size);
+void chip8_draw_screen(uint8_t x, uint8_t y, uint8_t h, uint8_t *data);
+void chip8_wait_key(void);
 uint16_t chip8_get_opcode(uint16_t addr);
-void chip8_step(void);
 
+//opcode function declares
 void chip8_opcode_none(uint16_t *opcode);
 
 void chip8_opcode_0ALL(uint16_t *opcode);
@@ -97,22 +103,43 @@ void chip8_opcode_FX55(uint16_t *opcode);
 void chip8_opcode_FX65(uint16_t *opcode);
 
 
-void (*opcode_FXXX[])(uint16_t *) = {chip8_opcode_0ALL,
-				     chip8_opcode_1NNN,
-				     chip8_opcode_2NNN,
-				     chip8_opcode_3XNN,
-				     chip8_opcode_4XNN,
-				     chip8_opcode_5XY0,
-				     chip8_opcode_6XNN,
-				     chip8_opcode_7XNN,
-				     chip8_opcode_8ALL,
-				     chip8_opcode_9XY0,
-				     chip8_opcode_ANNN,
-				     chip8_opcode_BNNN,
-				     chip8_opcode_CXNN,
-				     chip8_opcode_DXYN,
-				     chip8_opcode_EALL,
-				     chip8_opcode_FALL};
+void (*opcode_fp_FXXX[])(uint16_t *) = {
+    chip8_opcode_0ALL,
+    chip8_opcode_1NNN,
+    chip8_opcode_2NNN,
+    chip8_opcode_3XNN,
+    chip8_opcode_4XNN,
+    chip8_opcode_5XY0,
+    chip8_opcode_6XNN,
+    chip8_opcode_7XNN,
+    chip8_opcode_8ALL,
+    chip8_opcode_9XY0,
+    chip8_opcode_ANNN,
+    chip8_opcode_BNNN,
+    chip8_opcode_CXNN,
+    chip8_opcode_DXYN,
+    chip8_opcode_EALL,
+    chip8_opcode_FALL
+};
+
+void (*opcode_fp_8ALL[])(uint16_t *) = {
+    chip8_opcode_8XY0,
+    chip8_opcode_8XY1,
+    chip8_opcode_8XY2,
+    chip8_opcode_8XY3,
+    chip8_opcode_8XY4,
+    chip8_opcode_8XY5,
+    chip8_opcode_8XY6,
+    chip8_opcode_8XY7,
+    chip8_opcode_none,
+    chip8_opcode_none,
+    chip8_opcode_none,
+    chip8_opcode_none,
+    chip8_opcode_none,
+    chip8_opcode_none,
+    chip8_opcode_8XYE,
+    chip8_opcode_none
+};
 
 /***************FUNCTIONS********************/
 /**
@@ -124,10 +151,12 @@ void chip8_timer_ISR(void)
     sound_timer--;
 }
 
-void chip8_init(uint8_t *game, uint16_t size)
+void chip8_init(uint8_t *rom, uint16_t size)
 {
-    for (uint16_t i = 0x200; i < size; i++) {
-	memory[i] = game[i];
+    PC = 0x200;
+    I = 0;
+    for (uint16_t i = 0; i < size; i++) {
+	memory[i + 0x200] = rom[i];
     }
 }
 
@@ -139,10 +168,89 @@ uint16_t chip8_get_opcode(uint16_t addr)
 void chip8_step(void)
 {
     uint16_t opcode = chip8_get_opcode(PC);
+    printf("opcode %04x\n\r", opcode);
     PC += 2;
-    opcode_FXXX[(opcode & 0xf000) >> 12](&opcode);
+    opcode_fp_FXXX[(opcode & 0xf000) >> 12](&opcode);
+    if(PC >= 0x200 + 10)
+	PC = 0x200;
 }
 
+uint8_t** chip8_get_screen_buffer(void)
+{
+    return chip8_screen_buffer;
+}
+
+/*****************OPCODE CATCHERS*****************/
+void chip8_opcode_0ALL(uint16_t *opcode)
+{
+    switch(*opcode) {
+	case 0x00e0:
+	    chip8_opcode_00E0(opcode);
+	    break;
+	case 0x00ee:
+	    chip8_opcode_00EE(opcode);
+	    break;
+	default:
+	    chip8_opcode_0NNN(opcode);
+	    break;
+    }
+}
+
+void chip8_opcode_8ALL(uint16_t *opcode)
+{
+    opcode_fp_8ALL[*opcode & 0x000F](opcode);
+}
+
+void chip8_opcode_EALL(uint16_t *opcode)
+{
+    switch(*opcode & 0x00ff) {
+	case 0x009e:
+	    chip8_opcode_EX9E(opcode);
+	    break;
+	case 0x00a1:
+	    chip8_opcode_EXA1(opcode);
+	    break;
+	default:
+	    chip8_opcode_none(opcode);
+	    break;
+    }
+}
+
+void chip8_opcode_FALL(uint16_t *opcode)
+{
+    switch(*opcode & 0x00ff) {
+	case 0x0007:
+	    chip8_opcode_FX07(opcode);
+	    break;
+	case 0x000A:
+	    chip8_opcode_FX0A(opcode);
+	    break;
+	case 0x0015:
+	    chip8_opcode_FX15(opcode);
+	    break;
+	case 0x0018:
+	    chip8_opcode_FX18(opcode);
+	    break;
+	case 0x001e:
+	    chip8_opcode_FX1E(opcode);
+	    break;
+	case 0x0029:
+	    chip8_opcode_FX29(opcode);
+	    break;
+	case 0x0033:
+	    chip8_opcode_FX33(opcode);
+	    break;
+	case 0x0055:
+	    chip8_opcode_FX55(opcode);
+	    break;
+	case 0x0065:
+	    chip8_opcode_FX65(opcode);
+	    break;
+	default:
+	    chip8_opcode_none(opcode);
+	    break;
+    }
+}
 /******************OPCODES************************/
 void chip8_opcode_none(uint16_t *opcode)
 {
@@ -150,8 +258,17 @@ void chip8_opcode_none(uint16_t *opcode)
 }
 
 //0NNN 	Call 		Calls RCA 1802 program at address NNN. Not necessary for most ROMs.
+void chip8_opcode_0NNN(uint16_t *opcode)
+{
+    (void)opcode;
+}
 
 //00E0 	Display 	disp_clear() 	Clears the screen.
+void chip8_opcode_00E0(uint16_t *opcode)
+{
+    (void)opcode;
+    memset(chip8_screen_buffer, 0, sizeof(chip8_screen_buffer[0][0]) * CHIP8_WIDTH * CHIP8_HEIGHT);
+}
 
 //00EE 	Flow 	return; 	Returns from a subroutine.
 void chip8_opcode_00EE(uint16_t *opcode)
@@ -331,9 +448,35 @@ void chip8_opcode_CXNN(uint16_t *opcode)
 //DXYN 	Disp 	draw(Vx,Vy,N) 	Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value doesn’t change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that doesn’t happen
 void chip8_opcode_DXYN(uint16_t *opcode)
 {
-    uint8_t X = (*opcode & 0x0f00) >> 8;
-    uint8_t Y = (*opcode & 0x00f0) >> 4;
-    uint8_t N = *opcode & 0x000f;
+    uint8_t startX = (*opcode & 0x0f00) >> 8;
+    uint8_t startY = (*opcode & 0x00f0) >> 4;
+    uint8_t height = *opcode & 0x000f;
+
+    V[0xf] = 0;
+
+    uint16_t currentI = I;
+    for(uint16_t currentY = startY; currentY < startY + height; currentY++) {
+	uint8_t drawB = memory[currentI];
+	for(uint8_t bit = 0; bit < 8; bit++) {
+	    uint8_t pixel = drawB >> (7-bit);
+	    uint8_t currentX = startX + bit;
+
+	    //if a pixel goes from 1->0, set the VF to 1.
+	    if(chip8_screen_buffer[currentX][currentY] == 1 && pixel == 1) {
+		V[0xf] = 1;
+	    }
+	    chip8_screen_buffer[currentX][currentY] ^= pixel;
+	}
+    }
+
+    
+    /*
+    for(uint16_t i = I; i < I; i++) {
+	for(uint8_t bit = 7; bit >= 0; bit--) {
+	    chip8_screen_buffer[X+bit][Y + i - I] = memory[i] >> bit;
+	}
+    }
+    */
 }
 
 //EX9E 	KeyOp 	if(key()==Vx) 	Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block)
