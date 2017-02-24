@@ -3,12 +3,15 @@
 #include "pcd8544.h"
 #include "timer.h"
 #include "usb_cdc.h"
+#include "chip8.h"
 
 void setup(void);
 void loop(void);
-void setPixelTest(void);
+void set_pixel_test(void);
+void chip8_loop(void);
 
-Timer pixelTestTimer;
+Timer chip8Timer;
+uint8_t chip8ROM[] = {0xA0, 0x32, 0xD0, 0x05};
 
 int main(void)
 {
@@ -32,12 +35,29 @@ void setup(void)
     TimerInit(168000000);
     usb_init();
 
-    pixelTestTimer.millisInterrupt = 20;
-    pixelTestTimer.timerCallback = setPixelTest;
-    TimerAdd(&pixelTestTimer, 1);
+
+    chip8_init(chip8ROM, 4);
+    chip8Timer.millisInterrupt = 100;
+    chip8Timer.timerCallback = chip8_loop;
+    TimerAdd(&chip8Timer, 1);
 }
 
-void setPixelTest()
+void chip8_loop(void)
+{
+    chip8_step();
+
+    volatile uint8_t (*chip8_screen_ptr)[CHIP8_HEIGHT];
+    chip8_screen_ptr = chip8_get_screen_buffer();
+    for(int x = 0; x < CHIP8_WIDTH; x++) {
+	for(int y = 0; y < CHIP8_HEIGHT; y++) {
+	    if(chip8_screen_ptr[x][y])
+		LcdSetPixel(x, y);
+	}
+    }
+    LcdFlipBuffer();
+}
+
+void set_pixel_test()
 {
     static uint8_t x = 0;
     static uint8_t y = 0;

@@ -168,7 +168,6 @@ uint16_t chip8_get_opcode(uint16_t addr)
 void chip8_step(void)
 {
     uint16_t opcode = chip8_get_opcode(PC);
-    printf("opcode %04x\n\r", opcode);
     PC += 2;
     opcode_fp_FXXX[(opcode & 0xf000) >> 12](&opcode);
     if(PC >= 0x200 + 10)
@@ -448,18 +447,17 @@ void chip8_opcode_CXNN(uint16_t *opcode)
 //DXYN 	Disp 	draw(Vx,Vy,N) 	Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value doesn’t change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that doesn’t happen
 void chip8_opcode_DXYN(uint16_t *opcode)
 {
-    uint8_t startX = (*opcode & 0x0f00) >> 8;
-    uint8_t startY = (*opcode & 0x00f0) >> 4;
+    uint8_t X = (*opcode & 0x0f00) >> 8;
+    uint8_t Y = (*opcode & 0x00f0) >> 4;
     uint8_t height = *opcode & 0x000f;
-
+    uint16_t currentI = I;
     V[0xf] = 0;
 
-    uint16_t currentI = I;
-    for(uint16_t currentY = startY; currentY < startY + height; currentY++) {
-	uint8_t drawB = memory[currentI];
+    for(uint16_t currentY = V[Y]; currentY < V[Y] + height; currentY++) {
+	uint8_t drawB = memory[currentI++];
 	for(uint8_t bit = 0; bit < 8; bit++) {
-	    uint8_t pixel = drawB >> (7-bit);
-	    uint8_t currentX = startX + bit;
+	    uint8_t pixel = (drawB >> (7 - bit)) & 1;
+	    uint8_t currentX = V[X] + bit;
 
 	    //if a pixel goes from 1->0, set the VF to 1.
 	    if(chip8_screen_buffer[currentX][currentY] == 1 && pixel == 1) {
@@ -468,15 +466,6 @@ void chip8_opcode_DXYN(uint16_t *opcode)
 	    chip8_screen_buffer[currentX][currentY] ^= pixel;
 	}
     }
-
-    
-    /*
-    for(uint16_t i = I; i < I; i++) {
-	for(uint8_t bit = 7; bit >= 0; bit--) {
-	    chip8_screen_buffer[X+bit][Y + i - I] = memory[i] >> bit;
-	}
-    }
-    */
 }
 
 //EX9E 	KeyOp 	if(key()==Vx) 	Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block)
