@@ -22,7 +22,7 @@ OUR_INCLUDE_DIR = include
 OUR_BUILD_DIR = src
 
 BINARY = $(OUR_SRC_DIR)/main
-OBJS = $(OUR_SRC_DIR)/pcd8544.o $(OUR_SRC_DIR)/timer.o $(OUR_SRC_DIR)/usb_cdc.o $(OUR_SRC_DIR)/chip8.o
+OBJS = $(OUR_SRC_DIR)/pcd8544.o $(OUR_SRC_DIR)/timer.o $(OUR_SRC_DIR)/usb_cdc.o $(OUR_SRC_DIR)/chip8.o $(OUR_SRC_DIR)/rng.o
 
 # Default arch
 ifndef ARCH

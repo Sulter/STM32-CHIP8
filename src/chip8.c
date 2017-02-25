@@ -1,11 +1,11 @@
 #include "chip8.h"
+#include "rng.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 /**
  * TODO: 
- * CXNN - implement rand
  * Key input (multiple opcodes)
  * FX33 - BCD
  */
@@ -438,7 +438,7 @@ static void chip8_opcode_CXNN(const uint16_t *opcode)
 {
     uint8_t NN = (*opcode & 0x00ff);
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    uint8_t rand = 151;
+    uint32_t rand = rng_get_random_blocking();
     V[X] = rand & NN;
 }
 

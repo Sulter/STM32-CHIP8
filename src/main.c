@@ -4,6 +4,7 @@
 #include "timer.h"
 #include "usb_cdc.h"
 #include "chip8.h"
+#include "rng.h"
 
 void setup(void);
 void loop(void);
@@ -12,7 +13,7 @@ void chip8_loop(void);
 void chip8_draw(void);
 
 Timer chip8_loop_timer, chip8_timers_timer;
-uint8_t chip8ROM[] = {0xA0, 0x32, 0xD0, 0x05};
+uint8_t chip8ROM[] = {0xC0, 0x1f, 0xA0, 0x32, 0xD1, 0x05};
 
 int main(void)
 {
@@ -33,10 +34,11 @@ void setup(void)
     rcc_clock_setup_hse_3v3(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
     //init individual drivers/modules
+    rng_enable();
     LcdInitialise();
     TimerInit(168000000);
     usb_init();
-    chip8_init(chip8ROM, 4);
+    chip8_init(chip8ROM, 6);
 
     //init timers
     chip8_loop_timer.millisInterrupt = 1;
