@@ -7,10 +7,7 @@
 /**
  * TODO: 
  * Key input (multiple opcodes)
- * FX33 - BCD
  */
-
-static uint8_t chip8_screen_buffer[CHIP8_WIDTH][CHIP8_HEIGHT];
 
 static uint8_t memory[CHIP8_MEMSIZE] = {
     /*
@@ -48,6 +45,8 @@ static uint16_t stackP = 0;
 //peripherals
 volatile uint8_t delay_timer;
 volatile uint8_t sound_timer;
+static bool chip8_keys[CHIP8_NUMBER_OF_KEYS] = {0};
+static uint8_t chip8_screen_buffer[CHIP8_WIDTH][CHIP8_HEIGHT];
 
 //declare
 static uint16_t chip8_get_opcode(uint16_t addr);
@@ -175,6 +174,11 @@ void chip8_step(void)
 chip8_screen_t chip8_get_screen_buffer(void)
 {
     return chip8_screen_buffer;
+}
+
+void chip8_set_key(chip8_key_types key, bool is_down)
+{
+    chip8_keys[key] = is_down;
 }
 
 /*****************OPCODE CATCHERS*****************/
@@ -470,14 +474,18 @@ static void chip8_opcode_DXYN(const uint16_t *opcode)
 static void chip8_opcode_EX9E(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    (void)X;
+    if(chip8_keys[V[X]]) {
+	PC += 2;
+    }
 }
 
 //EXA1 	KeyOp 	if(key()!=Vx) 	Skips the next instruction if the key stored in VX isn't pressed. (Usually the next instruction is a jump to skip a code block)
 static void chip8_opcode_EXA1(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    (void)X;
+    if(!chip8_keys[V[X]]) {
+	PC += 2;
+    }
 }
 
 //FX07 	Timer 	Vx = get_delay() 	Sets VX to the value of the delay timer.
@@ -491,7 +499,14 @@ static void chip8_opcode_FX07(const uint16_t *opcode)
 static void chip8_opcode_FX0A(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    (void)X;
+    for(uint8_t keys = 0; keys < CHIP8_NUMBER_OF_KEYS; keys++) {
+	if(chip8_keys[keys]) {
+	    V[X] = chip8_keys[keys];
+	    return;
+	}
+    }
+    //We will run this opcode once again, if no keys are pressed
+    PC -= 2;
 }
 
 //FX15 	Timer 	delay_timer(Vx) 	Sets the delay timer to VX.
@@ -522,11 +537,18 @@ static void chip8_opcode_FX29(const uint16_t *opcode)
     I = memory[V[X] * 5];
 }
 
-//FX33 	BCD 	set_BCD(Vx);
+/*FX33 	BCD   set_BCD(Vx); *(I+0)=BCD(3); *(I+1)=BCD(2); *(I+2)=BCD(1);
+
+Stores the binary-coded decimal representation of VX, with the most significant of three 
+digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. 
+(In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.)
+ */
 static void chip8_opcode_FX33(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    (void)X;
+    memory[I] = V[X] / 100;
+    memory[I + 1] = (V[X] / 10) % 10;
+    memory[I + 2] = (V[X] % 100) % 10;
 }
 
 //FX55 	MEM 	reg_dump(Vx,&I) 	Stores V0 to VX (including VX) in memory starting at address I.[4]
