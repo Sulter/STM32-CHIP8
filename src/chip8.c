@@ -426,14 +426,14 @@ static void chip8_opcode_9XY0(const uint16_t *opcode)
 //ANNN 	MEM 	I = NNN 	Sets I to the address NNN.
 static void chip8_opcode_ANNN(const uint16_t *opcode)
 {
-    uint8_t NNN = (*opcode & 0x0fff);
+    uint16_t NNN = (*opcode & 0x0fff);
     I = NNN;
 }
 
 //BNNN 	Flow 	PC=V0+NNN 	Jumps to the address NNN plus V0.
 static void chip8_opcode_BNNN(const uint16_t *opcode)
 {
-    uint8_t NNN = (*opcode & 0x0fff);
+    uint16_t NNN = (*opcode & 0x0fff);
     PC = V[0] + NNN;
 }
 
