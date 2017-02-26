@@ -17,11 +17,12 @@ typedef enum {
     k_c, k_d, k_e, k_f
 } chip8_key_types;
 
-
 void chip8_init(const uint8_t *rom, uint16_t size);
 void chip8_step(void);
 chip8_screen_t chip8_get_screen_buffer(void);
 void chip8_timer_ISR(void);
 void chip8_set_key(chip8_key_types key, bool is_down);
+bool chip8_get_redraw(void);
+void chip8_reset_redraw(void);
 
 #endif

@@ -37,16 +37,17 @@ static uint8_t memory[CHIP8_MEMSIZE] = {
 
 //CPU
 static uint8_t V[16] = {0};
-static uint16_t PC = 200;
+static uint16_t PC = 0x200;
 static uint16_t I = 0;
 static uint16_t stack[16] = {0};
 static uint16_t stackP = 0;
 
 //peripherals
-volatile uint8_t delay_timer;
-volatile uint8_t sound_timer;
+volatile uint8_t delay_timer = 0;
+volatile uint8_t sound_timer = 0;
 static bool chip8_keys[CHIP8_NUMBER_OF_KEYS] = {0};
 static uint8_t chip8_screen_buffer[CHIP8_WIDTH][CHIP8_HEIGHT];
+static bool chip8_screen_redraw = false;
 
 //declare
 static uint16_t chip8_get_opcode(uint16_t addr);
@@ -144,14 +145,19 @@ void (*opcode_fp_8ALL[])(const uint16_t *) = {
  */
 void chip8_timer_ISR(void)
 {
-    delay_timer--;
-    sound_timer--;
+    if(delay_timer > 0) {
+	delay_timer--;
+    }
+    if(sound_timer > 0) {
+	sound_timer--;
+    }
 }
 
 void chip8_init(const uint8_t *rom, uint16_t size)
 {
     PC = 0x200;
     I = 0;
+    chip8_screen_redraw = false;
     for (uint16_t i = 0; i < size; i++) {
 	memory[i + 0x200] = rom[i];
     }
@@ -179,6 +185,16 @@ chip8_screen_t chip8_get_screen_buffer(void)
 void chip8_set_key(chip8_key_types key, bool is_down)
 {
     chip8_keys[key] = is_down;
+}
+
+bool chip8_get_redraw(void)
+{
+    return chip8_screen_redraw;
+}
+
+void chip8_reset_redraw(void)
+{
+    chip8_screen_redraw = false;
 }
 
 /*****************OPCODE CATCHERS*****************/
@@ -268,6 +284,7 @@ static void chip8_opcode_0NNN(const uint16_t *opcode)
 static void chip8_opcode_00E0(const uint16_t *opcode)
 {
     (void)opcode;
+    chip8_screen_redraw = true;
     memset(chip8_screen_buffer, 0, sizeof(chip8_screen_buffer[0][0]) * CHIP8_WIDTH * CHIP8_HEIGHT);
 }
 
@@ -283,6 +300,7 @@ static void chip8_opcode_00EE(const uint16_t *opcode)
 static void chip8_opcode_1NNN(const uint16_t *opcode)
 {
     PC = (*opcode & 0x0fff);
+    chip8_screen_redraw = true;
 }
 
 //2NNN 	Flow 	*(0xNNN)() 	Calls subroutine at NNN.
@@ -402,7 +420,7 @@ static void chip8_opcode_8XY7(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
     uint8_t Y = (*opcode & 0x00f0) >> 4;
-    V[0xF] = V[X] > V[Y];
+    V[0xF] = V[X] < V[Y];
     V[X] = V[Y] - V[X];
 }
 
@@ -454,6 +472,7 @@ static void chip8_opcode_DXYN(const uint16_t *opcode)
     uint8_t height = *opcode & 0x000f;
     uint16_t currentI = I;
     V[0xf] = 0;
+    //chip8_screen_redraw = true;
 
     for(uint16_t currentY = V[Y]; currentY < V[Y] + height; currentY++) {
 	uint8_t drawB = memory[currentI++];
@@ -476,6 +495,7 @@ static void chip8_opcode_EX9E(const uint16_t *opcode)
     uint8_t X = (*opcode & 0x0f00) >> 8;
     if(chip8_keys[V[X]]) {
 	PC += 2;
+	memset(chip8_keys, 0, sizeof(chip8_keys));
     }
 }
 
@@ -485,6 +505,8 @@ static void chip8_opcode_EXA1(const uint16_t *opcode)
     uint8_t X = (*opcode & 0x0f00) >> 8;
     if(!chip8_keys[V[X]]) {
 	PC += 2;
+    } else {
+	memset(chip8_keys, 0, sizeof(chip8_keys));
     }
 }
 
@@ -502,6 +524,7 @@ static void chip8_opcode_FX0A(const uint16_t *opcode)
     for(uint8_t keys = 0; keys < CHIP8_NUMBER_OF_KEYS; keys++) {
 	if(chip8_keys[keys]) {
 	    V[X] = chip8_keys[keys];
+	    memset(chip8_keys, 0, sizeof(chip8_keys));
 	    return;
 	}
     }
@@ -534,7 +557,7 @@ static void chip8_opcode_FX1E(const uint16_t *opcode)
 static void chip8_opcode_FX29(const uint16_t *opcode)
 {
     uint8_t X = (*opcode & 0x0f00) >> 8;
-    I = memory[V[X] * 5];
+    I = V[X] * 5;
 }
 
 /*FX33 	BCD   set_BCD(Vx); *(I+0)=BCD(3); *(I+1)=BCD(2); *(I+2)=BCD(1);

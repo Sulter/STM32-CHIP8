@@ -3,10 +3,10 @@
 #include <stdint.h>
 
 typedef struct {
-    volatile uint32_t millisCount;
-    volatile uint32_t millisInterrupt;
-    void (*timerCallback)(void);
-} Timer;
+    volatile uint32_t millis_count;
+    volatile uint32_t millis_interrupt;
+    void (*timer_callback)(void);
+} timer_struct;
 
 /*
   Think a bit about what could go wrong with TimerRemove. Or if the structure is lost (out of scope et.c)
@@ -14,10 +14,10 @@ typedef struct {
  */
 
 
-void TimerInit(uint32_t cpuFrequency);
-void TimerSleep(uint32_t ms);
-void TimerAdd(Timer *t, uint8_t timerNr);
-void TimerRemove(uint8_t timerNr);
-uint32_t TimerGetTotal(void);
+void timer_init(uint32_t cpuFrequency);
+void timer_sleep(uint32_t ms);
+void timer_add(timer_struct *t, uint8_t timerNr);
+void timer_remove(uint8_t timerNr);
+uint32_t timer_get_total(void);
 
 #endif

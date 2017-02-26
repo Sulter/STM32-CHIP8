@@ -5,35 +5,35 @@
 
 #define TOTAL_TIMERS 5
 
-volatile uint32_t systemTimeCount;
+volatile uint32_t system_ms_count;
 
-Timer *timerList[TOTAL_TIMERS];
+static timer_struct *timer_list[TOTAL_TIMERS];
 
 
-uint32_t TimerGetTotal(void)
+uint32_t timer_get_total(void)
 {
-    return systemTimeCount;
+    return system_ms_count;
 }
 
-void TimerAdd(Timer *t, uint8_t timerNr)
+void timer_add(timer_struct *t, uint8_t timerNr)
 {
     if(timerNr < TOTAL_TIMERS) {
-	t->millisCount = 0;
-	timerList[timerNr] = t;
+	t->millis_count = 0;
+	timer_list[timerNr] = t;
     }
 }
 
-void TimerRemove(uint8_t timerNr)
+void timer_remove(uint8_t timerNr)
 {
     if(timerNr < TOTAL_TIMERS) {
-	timerList[timerNr] = NULL;
+	timer_list[timerNr] = NULL;
     }
 }
 
-void TimerSleep(uint32_t ms)
+void timer_sleep(uint32_t ms)
 {
-    uint32_t wait = systemTimeCount + ms;
-    while (wait > systemTimeCount);
+    uint32_t wait = system_ms_count + ms;
+    while (wait > system_ms_count);
 }
 
 //ISR
@@ -41,27 +41,27 @@ void sys_tick_handler(void)
 {
     //handle timers
     for(uint8_t i = 0; i < TOTAL_TIMERS; i++) {
-	Timer *t = timerList[i];
+	timer_struct *t = timer_list[i];
 	if(t != NULL) {
-	    if(t->millisCount > t->millisInterrupt) {
-		t->timerCallback();
-		t->millisCount = 0;
+	    if(t->millis_count > t->millis_interrupt) {
+		t->timer_callback();
+		t->millis_count = 0;
 	    }
 	    else {
-		t->millisCount++;
+		t->millis_count++;
 	    }
 	}
     }
 
     //increase the total counter
-    systemTimeCount++;
+    system_ms_count++;
 }
 
-void TimerInit(uint32_t cpuFrequency)
+void timer_init(uint32_t cpuFrequency)
 {
     //ensure null pointers
     for(uint8_t i = 0; i < TOTAL_TIMERS; i++) {
-	timerList[i] = NULL;
+	timer_list[i] = NULL;
     }
 
     //ms resolution
