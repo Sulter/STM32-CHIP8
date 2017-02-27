@@ -208,9 +208,9 @@ void LcdInitialise(void)
       PB13 = SPI2_SCK
       PB12 = SPI2_NSS
      */
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE,
+    gpio_mode_setup(GPIO_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE,
 		    GPIO15 | GPIO13 | GPIO12);
-    gpio_set_af(GPIOB, GPIO_AF5,
+    gpio_set_af(GPIO_PORT, GPIO_AF5,
 		GPIO15 | GPIO13 | GPIO12);
 
 

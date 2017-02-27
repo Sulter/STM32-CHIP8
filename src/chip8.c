@@ -495,7 +495,6 @@ static void chip8_opcode_EX9E(const uint16_t *opcode)
     uint8_t X = (*opcode & 0x0f00) >> 8;
     if(chip8_keys[V[X]]) {
 	PC += 2;
-	memset(chip8_keys, 0, sizeof(chip8_keys));
     }
 }
 
@@ -505,8 +504,6 @@ static void chip8_opcode_EXA1(const uint16_t *opcode)
     uint8_t X = (*opcode & 0x0f00) >> 8;
     if(!chip8_keys[V[X]]) {
 	PC += 2;
-    } else {
-	memset(chip8_keys, 0, sizeof(chip8_keys));
     }
 }
 
@@ -524,7 +521,6 @@ static void chip8_opcode_FX0A(const uint16_t *opcode)
     for(uint8_t keys = 0; keys < CHIP8_NUMBER_OF_KEYS; keys++) {
 	if(chip8_keys[keys]) {
 	    V[X] = chip8_keys[keys];
-	    memset(chip8_keys, 0, sizeof(chip8_keys));
 	    return;
 	}
     }
